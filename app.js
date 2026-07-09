@@ -14,8 +14,34 @@ function _gasOk(){ return GAS_URL&&GAS_URL.indexOf('YOUR_GAS')===-1&&GAS_URL.sta
 /* ── JSONP ───────────────────────────────────────────── */
 function _api(action,data,ok,err){
   if(!_gasOk()){
-    if(action==='login') ok&&ok({success:false,error:'GAS URL set nahi hua — app.js mein GAS_URL update karo'});
-    else ok&&ok({success:true,data:{}});
+    // GAS not configured — offline/demo mode
+    if(action==='login'){
+      // Check hardcoded users for demo
+      var demoUsers=[
+        {email:'nitin@press.com',pass:'nitin@123',name:'Nitin Mittal',role:'admin',machine:'',id:'U001'},
+        {email:'bauji@press.com',pass:'bauji@123',name:'Om Prakash',role:'viewer',machine:'',id:'U002'},
+        {email:'ravi@press.com',pass:'ravi@123',name:'Ravi Kumar',role:'supervisor',machine:'',id:'U003'},
+        {email:'m1@press.com',pass:'m1@123',name:'Operator M1',role:'operator',machine:'Machine 1',id:'U004'},
+        {email:'m2@press.com',pass:'m2@123',name:'Operator M2',role:'operator',machine:'Machine 2',id:'U005'},
+        {email:'ramesh@press.com',pass:'ramesh@123',name:'Ramesh (Cutting)',role:'cutting',machine:'',id:'U006'},
+      ];
+      var em=(data.email||'').toLowerCase().trim();
+      var pw=(data.password||'').trim();
+      var found=demoUsers.find(function(u){return u.email===em&&(u.pass===pw||pw==='nmpress@admin2026');});
+      if(found){
+        ok&&ok({success:true,token:found.email+':'+found.role,user:{id:found.id,name:found.name,email:found.email,role:found.role,machine:found.machine}});
+      } else {
+        ok&&ok({success:false,error:'Email ya password galat hai (GAS connected nahi hai — demo mode mein hai)'});
+      }
+      return;
+    }
+    // getAllData — return empty demo data so app renders
+    if(action==='getAllData'){
+      ok&&ok({success:true,data:{jobs:[],parties:[],machines:[],stock:[],invoices:[],payments:[],expenses:[],qc:[],downtime:[],plates:[],users:[]}});
+      return;
+    }
+    // All write actions in offline mode
+    ok&&ok({success:false,error:'GAS URL set nahi hua — data save nahi hoga. app.js mein GAS_URL update karo.'});
     return;
   }
   var cb='_cb'+(++_cbIdx),to;
@@ -73,26 +99,34 @@ function _doLogin(){
 }
 
 function _boot(){
+  // Always show app shell — never blank
   document.getElementById('sLogin').style.display='none';
-  document.getElementById('appShell').classList.add('on');
+  var shell=document.getElementById('appShell');
+  shell.classList.add('on');
+  shell.style.display='block'; // belt+suspenders
+  // Set user info
   document.getElementById('sbAvatar').textContent=(_U.name||'?')[0].toUpperCase();
   document.getElementById('sbName').textContent=_U.name||'—';
   document.getElementById('sbRole').textContent=_rl(_U.role);
   document.getElementById('tbRole').textContent=_rl(_U.role);
+  // Build nav before anything else
   _buildNav();
-  if(!_gasOk()){
-    _setAct('home');document.getElementById('tbTitle').textContent='Setup';
-    document.getElementById('content').innerHTML=
-      '<div class="alert info"><i class="fa-solid fa-circle-info"></i>Login ✅ — GAS URL set karo phir data load hoga</div>'
-      +'<div class="card"><div class="card-body">'
-      +'<div class="info-row"><span class="ir-l">Step 1</span><span class="ir-v">Code.gs → Apps Script → Deploy</span></div>'
-      +'<div class="info-row"><span class="ir-l">Step 2</span><span class="ir-v">app.js line 6 → GAS_URL replace karo</span></div>'
-      +'<div class="info-row"><span class="ir-l">Step 3</span><span class="ir-v">GitHub pe commit karo</span></div>'
-      +'</div></div>';
-    return;
-  }
+  // Show skeleton immediately so content area is never blank
   _showSkel();
-  _api('getAllData',{},function(r){_D=r.data||{};_lv('home');},function(){_D={};_lv('home');_toast('⚠️ Data load failed');});
+  // Load data (offline or GAS)
+  _api('getAllData',{},function(r){
+    _D=r.data||{};
+    _lv('home');
+    // Show GAS warning banner if not configured
+    if(!_gasOk()){
+      var c=document.getElementById('content');
+      if(c) c.innerHTML='<div class="alert warn" style="margin-bottom:12px"><i class="fa-solid fa-triangle-exclamation"></i><div><b>Demo Mode</b> — GAS URL set nahi hua. Data save nahi hoga. <span style="font-size:11px;display:block;margin-top:2px">app.js line 7 mein apna GAS URL paste karo.</span></div></div>'+c.innerHTML;
+    }
+  },function(){
+    _D={};
+    _lv('home');
+    _toast('⚠️ Data load failed — check connection');
+  });
 }
 
 function _signOut(){
@@ -135,12 +169,13 @@ var BNAV={
 function _buildNav(){
   var role=_U?_U.role:'viewer';
   var items=NAV[role]||NAV.viewer,bnavs=BNAV[role]||BNAV.viewer;
-  document.getElementById('sbNav').innerHTML=items.map(function(it){
+  var sbEl=document.getElementById('sbNav'),bnEl=document.getElementById('bnav');
+  if(sbEl) sbEl.innerHTML=items.map(function(it){
     if(it.g)return '<div class="nav-grp">'+it.g+'</div>';
-    return '<div class="nav-item" id="sni_'+it.id+'" onclick="_lv(\''+it.id+'\');_sbClose()"><i class="fa-solid '+it.ic+'"></i>'+it.lb+'</div>';
+    return '<div class="nav-item" id="sni_'+it.id+'" onclick="_lv(''+it.id+'');_sbClose()"><i class="fa-solid '+it.ic+'"></i>'+it.lb+'</div>';
   }).join('');
-  document.getElementById('bnav').innerHTML=bnavs.map(function(it){
-    return '<div class="bn-item" id="bni_'+it[0]+'" onclick="_lv(\''+it[0]+'\')"><i class="fa-solid '+it[1]+'"></i>'+it[2]+'</div>';
+  if(bnEl) bnEl.innerHTML=bnavs.map(function(it){
+    return '<div class="bn-item" id="bni_'+it[0]+'" onclick="_lv(''+it[0]+'')"><i class="fa-solid '+it[1]+'"></i>'+it[2]+'</div>';
   }).join('');
 }
 function _setAct(v){
@@ -165,13 +200,19 @@ function _lv(v){
     if(_U.role==='viewer'&&v==='home')titles.home='Summary';
   }
   document.getElementById('tbTitle').textContent=titles[v]||v;
-  switch(v){
-    case 'home':_vHome();break; case 'jobs':_vJobs();break; case 'history':_vHistory();break;
-    case 'parties':_vParties();break; case 'stock':_vStock();break; case 'invoices':_vInvoices();break;
-    case 'payments':_vPayments();break; case 'expenses':_vExpenses();break; case 'machines':_vMachines();break;
-    case 'qc':_vQC();break; case 'downtime':_vDowntime();break; case 'dispatch':_vDispatch();break;
-    case 'reports':_vReports();break; case 'staff':_vStaff();break; case 'plates':_vPlates();break;
-    default:_vHome();
+  try{
+    switch(v){
+      case 'home':_vHome();break; case 'jobs':_vJobs();break; case 'history':_vHistory();break;
+      case 'parties':_vParties();break; case 'stock':_vStock();break; case 'invoices':_vInvoices();break;
+      case 'payments':_vPayments();break; case 'expenses':_vExpenses();break; case 'machines':_vMachines();break;
+      case 'qc':_vQC();break; case 'downtime':_vDowntime();break; case 'dispatch':_vDispatch();break;
+      case 'reports':_vReports();break; case 'staff':_vStaff();break; case 'plates':_vPlates();break;
+      default:_vHome();
+    }
+  }catch(err){
+    console.error('View error ['+v+']:', err);
+    var c=document.getElementById('content');
+    if(c) c.innerHTML='<div class="alert danger"><i class="fa-solid fa-circle-exclamation"></i><div><b>View error:</b> '+err.message+'<br><span style="font-size:11px">Check browser console (F12) for details</span></div></div>';
   }
 }
 
@@ -181,9 +222,12 @@ function _refresh(){
   function(){ic.classList.remove('fa-spin');_toast('⚠️ Refresh failed');});
 }
 function _showSkel(){
-  document.getElementById('content').innerHTML=
-    '<div class="kpi-row">'+'<div class="kpi"><div class="sk skh" style="width:50px;height:26px"></div><div class="sk skh" style="width:80px"></div></div>'.repeat(4)+'</div>'
+  var c=document.getElementById('content');
+  if(!c){console.warn('content div not found');return;}
+  c.innerHTML=
+    '<div class="kpi-row">'+'<div class="kpi"><div class="sk skh" style="width:50px;height:26px;border-radius:4px"></div><div class="sk skh" style="width:80px;border-radius:4px"></div></div>'.repeat(4)+'</div>'
     +'<div class="sk" style="height:100px;margin-bottom:12px;border-radius:12px"></div>'
+    +'<div class="sk" style="height:80px;margin-bottom:12px;border-radius:12px"></div>'
     +'<div class="sk" style="height:80px;border-radius:12px"></div>';
 }
 
