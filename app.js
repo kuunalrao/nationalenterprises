@@ -2,7 +2,7 @@
 
 /* NM Press app.js v3.1 — Premium Mobile UI */
 'use strict';
-var GAS_URL='https://script.google.com/macros/s/AKfycbwyoea7hhlN3feL6ydKND1SoTDiNgsWhstImhV1jgw5c1o0YBoUYyLKODVkmmS1ATw1-g/execE';
+var GAS_URL='https://script.google.com/macros/s/AKfycbwyoea7hhlN3feL6ydKND1SoTDiNgsWhstImhV1jgw5c1o0YBoUYyLKODVkmmS1ATw1-g/exec';
 var LS_KEY='nm_press_v3';
 var _U=null,_TOKEN=null,_D={},_V='home',_cbIdx=0,_fabCb=null;
 var _jFilter='all',_jSearch='';
